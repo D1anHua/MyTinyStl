@@ -93,12 +93,12 @@ void allocator<T>::construct(T* ptr, Args&& ...args){
 
 template<class T>
 void allocator<T>::destroy(T* ptr){
-    dhsstl::destory(ptr);
+    dhsstl::destroy(ptr);
 }
 
 template<class T>
 void allocator<T>::destroy(T* first, T* last){
-    dhsstl::destory(first, last);
+    dhsstl::destroy(first, last);
 }
 
 } // namespace dhsstl

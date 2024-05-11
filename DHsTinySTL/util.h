@@ -221,8 +221,8 @@ struct pair{
    >::type = 0  
   >
   constexpr pair(pair<Other1, Other2>&& other)
-  : first(dhsstl::forward(other.first)),
-  second(dhsstl::forward(other.second))
+  : first(dhsstl::forward<Other1>(other.first)),
+  second(dhsstl::forward<Other2>(other.second))
   {
   }
 
@@ -238,8 +238,8 @@ struct pair{
     >::type = 0
   >
   explicit constexpr pair(pair<Other1, Other2>&& other)
-  : first(dhsstl::forward(other.first)),
-  second(dhsstl::forward(other.second))
+  : first(dhsstl::forward<Other1>(other.first)),
+  second(dhsstl::forward<Other2>(other.second))
   {
   }
 
@@ -272,8 +272,8 @@ struct pair{
   // move assign for other pair
   template <typename Other1, typename Other2>
   pair& operator=(pair<Other1, Other2>&& other){
-    first = dhsstl::forward(other.first);
-    second = dhsstl::forward(other.second);
+    first = dhsstl::forward<Other1>(other.first);
+    second = dhsstl::forward<Other2>(other.second);
     return *this;
   }
 
@@ -327,7 +327,7 @@ void swap(pair<Ty1, Ty2>& lhs, pair<Ty1, Ty2>& rhs){
 // 全局函数, 让两个数据成为一个pair
 template <typename Ty1, typename Ty2>
 pair<Ty1, Ty2> make_pair(Ty1&& first, Ty2&& second){
-  return pair<Ty1, Ty2>(dhsstl::forward(first), dhsstl::forward(second));
+  return pair<Ty1, Ty2>(dhsstl::forward<Ty1>(first), dhsstl::forward<Ty2>(second));
 }
 } // namespace dhsstl
 

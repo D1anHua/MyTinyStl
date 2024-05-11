@@ -203,7 +203,7 @@ public:
     void        erase(iterator position)        { tree_.erase(position); }
     size_type   erase(const key_type& key)      { return tree_.erase_unique(key); }
     void        erase(iterator first, iterator last) { tree_.erase(first, last); }
-    void        claer()                         { tree_.clear(); }
+    void        clear()                         { tree_.clear(); }
 
     // map 相关操作
     iterator        find(const key_type& key)           { return tree_.find(key); }
@@ -397,7 +397,7 @@ public:
 
     // 插入删除相关
     template <typename ...Args>
-    pair<iterator, bool> emplace(Args&& ...args){
+    iterator emplace(Args&& ...args){
         return tree_.emplace_multi(dhsstl::forward<Args>(args)...);
     }
 
@@ -406,10 +406,10 @@ public:
         return tree_.emplace_multi_use_hint(hint, dhsstl::forward<Args>(args)...);
     }
 
-    pair<iterator, bool> insert(const value_type& value){
+    iterator insert(const value_type& value){
         return tree_.insert_multi(value);
     }
-    pair<iterator, bool> insert(value_type&& value){
+    iterator insert(value_type&& value){
         return tree_.insert_multi(dhsstl::move(value));
     }
 
@@ -428,7 +428,7 @@ public:
     void        erase(iterator position)        { tree_.erase(position); }
     size_type   erase(const key_type& key)      { return tree_.erase_multi(key); }
     void        erase(iterator first, iterator last) { tree_.erase(first, last); }
-    void        claer()                         { tree_.clear(); }
+    void        clear()                         { tree_.clear(); }
 
     // multimap 相关操作
     iterator        find(const key_type& key)           { return tree_.find(key); }

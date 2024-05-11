@@ -35,7 +35,7 @@ inline void __push_heap_aux(RandomIter first, RandomIter last, Distance*){
 template <typename RandomIter>
 void push_heap(RandomIter first, RandomIter last){
     // 注意 : 此函数被调用时, 新元素应该已经置于底部容器的最尾端
-    dhsstl::__push_heap_aux(first, last, distance_type(first), value_type(first));
+    dhsstl::__push_heap_aux(first, last, distance_type(first));
 }
 
 

@@ -5,4 +5,6 @@ SET(CMAKE_BUILD_TYPE Debug)
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build/bin/)
 
 include_directories(${PROJECT_SOURCE_DIR}/DhsTinySTL)
+include_directories(${PROJECT_SOURCE_DIR}/Test)
+
 add_executable(main ${PROJECT_SOURCE_DIR}/Test/main.cpp)

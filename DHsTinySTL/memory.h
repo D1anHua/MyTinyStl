@@ -7,13 +7,14 @@
 #include <cstddef>
 #include <cstdlib>
 #include <climits>
+#include <atomic>
 
 #include "algobase.h"
 #include "allocator.h"
 #include "construct.h"
 #include "uninitialized.h"
 #include "util.h"
-#include "Detail/ref.h"
+//#include "Detail/ref.h"
 
 namespace dhsstl{
 
@@ -70,7 +71,7 @@ private:
 public:
     temporary_buffer(ForwardIterator first, ForwardIterator last);
     ~temporary_buffer(){
-        dhsstl::destory(buffer, buffer+len);
+        dhsstl::destroy(buffer, buffer+len);
         free(buffer);
     }
 
@@ -190,33 +191,25 @@ public:
 };
 
 
-// smartPointer
+/*!
+ * @brief Unique_ptr
+ * 具有严格对象所有权的智能指针
+ * @tparam T 只能指针所指的类型
+ */
 template<typename T>
-struct default_delete{
-    void operator() (T* ptr){ if(ptr){ delete ptr;}}
-};
-
-template<typename T>
-struct default_delete<T[]>{
-    void operator() (T* ptr){ if(ptr){ delete[] ptr; }}
-};
-
-template<typename T, typename D = default_delete<T>>
 class unique_ptr{
 
 public:
-    typedef T element_type;
-    typedef D deleter_type;
-    typedef element_type *pointer;
+    typedef T               element_type;
+    typedef element_type*   pointer;
 
 public:
     explicit unique_ptr(T* data = nullptr) : data_(data){}
-    unique_ptr(T* data, deleter_type del) : data_(data), delete(del){}
-    unique_ptr(unique_ptr&& up) : data_(nullptr){
+    unique_ptr(unique_ptr&& up) noexcept   : data_(nullptr){
         dhsstl::swap(data_, up.data_);
     }
 
-    unique_ptr& operator=(unique_ptr&& up){
+    unique_ptr& operator=(unique_ptr&& up) noexcept{
         if(&up != this){
             clean();
             dhsstl::swap(*this, up);
@@ -230,12 +223,9 @@ public:
     ~unique_ptr(){ clean(); }
 
     pointer       get()      { return data_; }
-    const pointer get() const{ return data_; }
-    deleter_type&       get_deleter(){ return deleter; }
-    const deleter_type& get_deleter() const { return deleter; }
 
     // 重载bool操作: if(ptr)
-    operator bool() const{return get() != nullptr; }
+    explicit operator bool() const{return get() != nullptr; }
 
     pointer release(){
         T *p = nullptr;
@@ -252,46 +242,41 @@ public:
 
     element_type&       operator*() const { return *data_; }
     pointer             operator->() {return data_;}
-    const element_type& operator *() const{ return *data_; }
-    const pointer       operator->() const{ return data_; }
-
 private:
     inline void clean(){
-        deleter(data_);
         data_ = nullptr;
     }
 private:
     element_type *data_;
-    deletet_type deleter;
 };
 
-template<typename T, typename D>
-void swap(unique_ptr<T, D>& x, unique_ptr<T, D>& y){
+template<typename T>
+void swap(unique_ptr<T>& x, unique_ptr<T>& y){
     x.swap(y);
 }
 
-template<typename T1, typename D1, typename T2, typename D2>
-bool operator==(const unique_ptr<T1, D1>& lhs, const unique_ptr<T2, D2>& rhs){
+template<typename T1, typename T2>
+bool operator==(const unique_ptr<T1>& lhs, const unique_ptr<T2>& rhs){
     return lhs.get() == rhs.get();
 }
-template<typename T1, typename D1, typename T2, typename D2>
-bool operator!=(const unique_ptr<T1, D1>& lhs, const unique_ptr<T2, D2>& rhs){
+template<typename T1, typename T2>
+bool operator!=(const unique_ptr<T1>& lhs, const unique_ptr<T2>& rhs){
     return !(lhs == rhs);
 }
-template<typename T, typename D>
-bool operator==(const unique_ptr<T,D>& up, nullptr_t p){
+template<typename T>
+bool operator==(const unique_ptr<T>& up, std::nullptr_t p){
     return up.get() == p;
 }
-template<typename T, typename D>
-bool operator==(nullptr_t p ,const unique_ptr<T,D>& up){
+template<typename T>
+bool operator==(std::nullptr_t p ,const unique_ptr<T>& up){
     return up.get() == p;
 }
-template<typename T, typename D>
-bool operator!=(const unique_ptr<T,D>& up, nullptr_t p){
+template<typename T>
+bool operator!=(const unique_ptr<T>& up, std::nullptr_t p){
     return up.get() != p;
 }
-template<typename T, typename D>
-bool operator!=(nullptr_t p ,const unique_ptr<T,D>& up){
+template<typename T>
+bool operator!=(std::nullptr_t p ,const unique_ptr<T>& up){
     return up.get() != p;
 }
 
@@ -307,17 +292,92 @@ struct prt_count{
     std::atomic<size_t> wcount_;
 };
 
-template<typename T> class weak_ptr;
+
+template<typename T> class shared_ptr;
+/**
+ * @brief weak_ptr
+ * 弱共享指针, 由shared_ptr初始化
+ * 不增加管理资源的指针计数, 当管理资源的shared_ptr计数清零后将组织访问资源
+ * @tparam T
+ */
+template<typename T>
+class weak_ptr{
+    template <typename U> friend class shared_ptr;
+
+public:
+    weak_ptr() = default;
+    weak_ptr(const weak_ptr& rhs): _data(rhs._data), _ptr_count(rhs._ptr_count){
+        if(_ptr_count) ++_ptr_count->wcount_;
+    }
+
+    weak_ptr(const shared_ptr<T>& rhs): _data(rhs._data), _ptr_count(rhs._ptr_count){
+        if(_ptr_count) ++_ptr_count->wcount_;
+    }
+
+    weak_ptr(weak_ptr&& rhs) noexcept{
+        swap(rhs);
+        rhs.reset();
+    }
+
+    weak_ptr& operator=(const weak_ptr& rhs) noexcept{
+        weak_ptr tmp(rhs);
+        swap(tmp);
+        return *this;
+    }
+
+    weak_ptr& operator=(weak_ptr&& rhs) noexcept{
+        weak_ptr tmp(dhsstl::move(this));
+        swap(tmp);
+        return *this;
+    }
+
+    ~weak_ptr(){
+        release();
+    }
+
+    void reset() noexcept{
+        release();
+        _data = nullptr;
+        _ptr_count = nullptr;
+    }
+
+    int use_count() const noexcept{
+        return _data == nullptr ? 0 : _ptr_count->ncount_.load();
+    }
+
+    bool expired() const noexcept{ return use_count() == 0; }
+
+    shared_ptr<T> lock(){
+        return expired() ? shared_ptr<T>() : shared_ptr<T>(*this);
+    }
+private:
+    void swap(weak_ptr& rhs) noexcept{
+        dhsstl::swap(_data, rhs._data);
+        dhsstl::swap(_ptr_count, rhs._ptr_count);
+    }
+
+    void release(){
+        if(_ptr_count){
+            if(_ptr_count->ncount_ == 0 && --_ptr_count->wcount_ == 0){
+                delete _ptr_count;
+                _ptr_count = nullptr;
+            }
+        }
+    }
+private:
+    T* _data = nullptr;
+    prt_count* _ptr_count = nullptr;
+};
+/*!
+ * @brief shared_ptr
+ * 允许多个智能指针同时指向一个底部资源
+ * @tparam T 只能指针所指的类型
+ */
 template<typename T>
 class shared_ptr{
-
-    template<typename U> friend class weak_ptr<U>;
+    template<typename U> friend class weak_ptr;
 public:
-    typename T element_type;
-
-// private:
-//     template<typename Type>
-//     using ref_t = Detail::ref_t<Type>;
+    typedef T              element_type;
 
 public:
     explicit shared_ptr(T* p = nullptr) : _data(p){
@@ -338,31 +398,41 @@ public:
     shared_ptr(const shared_ptr& sp) : _data(sp._data), _ptr_count(sp._ptr_count){
         if(_ptr_count) ++_ptr_count->ncount_;
     }
-    shared_ptr(const weak_ptr& wp) : _data(wp._data), _ptr_count(wp._ptr_count){
-        if(_ptr_count) ++_prt_count->ncount_;
+    shared_ptr(shared_ptr&& sp) noexcept{
+        swap(this);
+        sp.reset();
+    }
+    explicit shared_ptr(const weak_ptr<T>& wp) : _data(wp._data), _ptr_count(wp._ptr_count){
+        if(_ptr_count) ++_ptr_count->ncount_;
     }
 
     shared_ptr& operator=( const shared_ptr& sp){
-        shared_ptr tmp(rhs);
+        shared_ptr tmp(sp);
+        swap(tmp);
+        return *this;
+    }
+    shared_ptr& operator=(shared_ptr&& sp) noexcept{
+        shared_ptr tmp(sp);
         swap(tmp);
         return *this;
     }
 
     ~shared_ptr() { release(); }
 
-    element_type&       operator*() { assert(*this); return *(get()); }
-    element_type*       operator->() { return get(); }
-    const element_type& operator*()  const { return *(get()); }
-    const element_type* operator->() const { return get(); }
-
-    element_type*       get() { return _data; }
-    const element_type* get() const { return  _data; }
     bool unique() const noexcept{
-        return _data != nullptr && _ptr_count->ncount_.load == 1;
+        return _data != nullptr && _ptr_count->ncount_.load() == 1;
     }
-    size_t use_count() const {
-        return _data == nullptr ? && 0 : _ptr_count->ncount_.load();
+    int use_count() const {
+        return _data == nullptr ? 0 : _ptr_count->ncount_.load();
     }
+
+    element_type&       operator*()             { assert(*this); return *(get()); }
+    element_type*       operator->()            { return get(); }
+    const element_type& operator*()  const      { return *(get()); }
+    const element_type* operator->() const      { return get(); }
+
+    element_type*       get()       { return _data; }
+    const element_type* get() const { return  _data; }
 
     void reset(){
         release();
@@ -411,19 +481,19 @@ bool operator!=(const shared_ptr<T1>& lhs, const shared_ptr<T2>& rhs){
     return !(lhs == rhs);
 }
 template<class T>
-bool operator==(const shared_ptr<T>& sh, nullptr_t p){
+bool operator==(const shared_ptr<T>& sh, std::nullptr_t p){
     return sh.get() == p;
 }
 template<class T>
-bool operator==(nullptr_t p, const shared_ptr<T>& sh){
+bool operator==(std::nullptr_t p, const shared_ptr<T>& sh){
     return sh.get() == p;
 }
 template<class T>
-bool operator!=(const shared_ptr<T>& sh, nullptr_t p){
+bool operator!=(const shared_ptr<T>& sh, std::nullptr_t p){
     return sh.get() != p;
 }
 template<class T>
-bool operator!=(nullptr_t p, const shared_ptr<T>& sh){
+bool operator!=(std::nullptr_t p, const shared_ptr<T>& sh){
     return sh.get() != p;
 }
 
@@ -432,81 +502,6 @@ shared_ptr<T> make_shared(Args... args){
     return shared_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
-/**
- * @brief weak_ptr 弱共享指针, 由shared_ptr初始化
- * 不增加管理资源的指针计数, 当管理资源的shared_ptr计数清零后将组织访问资源
- * 
- * @tparam T 
- */
-template<typename T>
-class weak_ptr{
-    template <typename U> friend class shared_ptr;
-
-public:
-    weak_ptr() = default;
-    weak_ptr(const weak_ptr& rhs): _data(rhs._data), _ptr_count(rhs._ptr_count){
-        if(_ptr_count) ++_ptr_count->wcount_;
-    }
-
-    weak_ptr(const shared_ptr& rhs)_data(rhs._data), _ptr_count(rhs._ptr_count){
-        if(_ptr_count) ++_ptr_count->wcount_;
-    }
-
-    weak_ptr(weak_ptr&& rhs) noexcept{
-        swap(rhs);
-        rhs.reset();
-    }
-
-    weak_ptr& operator=(const weak_ptr& rhs) noexcept{
-        weak_ptr tmp(rhs);
-        swap(tmp);
-        return *this;
-    }
-
-    weak_ptr& operator=(weak_ptr&& rhs) noexcept{
-        weak_ptr tmp(dhsstl::move(ths));
-        swap(tmp);
-        return *this;
-    }
-
-    ~weak_ptr(){
-        release();
-    }
-
-    void reset() noexcept{
-        release();
-        _data = nullptr;
-        _ptr_count = nullptr;
-    }
-
-    int use_count() const noexcept{
-        return _data == nullptr ? 0 : _ptr_count->ncount_.load();
-    }
-
-    bool expired() const noexcept{ return use_count() == 0; }
-
-    shared_ptr<T> lock(){
-        return expired() ? shared_ptr<T>() : shared_ptr<T>(*this);
-    }
-private:
-    void swap(weak_ptr& rhs) noexcept{
-        dhsstl::swap(_data, rhs._data);
-        dhsstl::swap(_ptr_count, rhs._ptr_count);
-    }
-
-    void release(){
-        if(_ptr_count){
-            if(_ptr_count->ncount_ == 0 && --prt_count->wcount_ == 0){
-                delete ref_;
-                _ptr_count = nullptr;
-            }
-        }
-    }
-private
-    // ref_t<T> *ref_;
-    T* _data = nullptr;
-    prt_count* _ptr_count = nullptr;
-};
 
 }//namespace dhsstl
 #endif //!DHSTINYSTL_MEMORY_H_

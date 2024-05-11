@@ -453,7 +453,7 @@ template <typename T>
 deque<T>& deque<T>::operator=(const deque& rhs){
     if(this != &rhs){
         const auto len = size();
-        if(len >= rhs,size()){
+        if(len >= rhs.size()){
             erase(dhsstl::copy(rhs.begin_, rhs.end_, begin_), end_);
         }else{
             iterator mid = rhs.begin() + static_cast<difference_type>(len);
@@ -707,14 +707,14 @@ template <typename T>
 void deque<T>::clear(){
     // clear 会保留头部的缓冲区
     for(map_pointer cur = begin_.node + 1; cur < end_.node; ++cur){
-        data_allocator::destory(*cur, *cur + buffer_size);
+        data_allocator::destroy(*cur, *cur + buffer_size);
     }
     if(begin_.node != end_.node){
         // 有两个以上的缓冲区
-        dhsstl::destory(begin_.cur, begin_.last);
-        dhsstl::destory(end_.first, end_.cur);
+        dhsstl::destroy(begin_.cur, begin_.last);
+        dhsstl::destroy(end_.first, end_.cur);
     }else{
-        dhsstl::destory(begin_.cur, end_.cur);
+        dhsstl::destroy(begin_.cur, end_.cur);
     }
     shrink_to_fit();
     end_ = begin_;
@@ -764,7 +764,7 @@ create_buffer(map_pointer nstart, map_pointer nfinish){
     }
 }
 
-// destory_buffer函数
+// destroy_buffer函数
 template <typename T>
 void deque<T>::
 destroy_buffer(map_pointer nstart, map_pointer nfinish){
@@ -825,8 +825,8 @@ template <typename T>
 template <typename IIter>
 void deque<T>::
 copy_init(IIter first, IIter last, input_iterator_tag){
-    // const size_type n = dhsstl::distance(first, last);
-    map_init(0);
+     const size_type n = dhsstl::distance(first, last);
+    map_init(n);
     for(; first != last; ++first)
         emplace_back(*first);
 }
@@ -874,6 +874,26 @@ copy_assign(IIter first, IIter last, input_iterator_tag){
     }else{
         insert_dispatch(end_, first, input_iterator_tag{});
     }
+}
+
+template <typename T>
+template <typename FIter>
+void deque<T>::
+copy_assign(FIter first, FIter last, forward_iterator_tag)
+{
+  const size_type len1 = size();
+  const size_type len2 = dhsstl::distance(first, last);
+  if (len1 < len2)
+  {
+    auto next = first;
+    dhsstl::advance(next, len1);
+    dhsstl::copy(first, next, begin_);
+    insert_dispatch(end_, next, last, forward_iterator_tag{});
+  }
+  else
+  {
+    erase(dhsstl::copy(first, last, begin_), end_);
+  }
 }
 
 // insert_aux 函数
@@ -940,7 +960,7 @@ fill_insert(iterator position, size_type n, const value_type& value){
         }catch(...){
             // 前面的操作都包含了回滚, 所以这里不用回滚
             if(new_begin.node != begin_.node)
-                destory_buffer(new_begin.node, begin_.node - 1);
+                destroy_buffer(new_begin.node, begin_.node - 1);
             throw;
         }
     }else{
@@ -967,7 +987,7 @@ fill_insert(iterator position, size_type n, const value_type& value){
         }
         catch(...){
             if(new_end.node != end_.node)
-                destory_buffer(end_.node + 1, new_end.node);
+                destroy_buffer(end_.node + 1, new_end.node);
             throw;
         }
     }
@@ -1072,7 +1092,7 @@ insert_dispatch(iterator position, FIter first, FIter last, forward_iterator_tag
             begin_ = new_begin;
         }catch(...){
             if(new_begin.node != begin_.node)
-                destory_buffer(new_begin.node, begin_.node - 1);
+                destroy_buffer(new_begin.node, begin_.node - 1);
             throw;
         }
     }else if(position.cur == end_.cur){
@@ -1146,7 +1166,7 @@ void deque<T>::reallocate_map_at_back(size_type need_buffer){
         map_size_ << 1,
         map_size_ + need_buffer + DEQUE_MAP_INIT_SIZE
     );
-    map_pointer new_map = create_buffer(new_map_size);
+    map_pointer new_map = create_map(new_map_size);
     const size_type old_buffer = end_.node - begin_.node + 1;
     const size_type new_buffer = old_buffer + need_buffer;
 

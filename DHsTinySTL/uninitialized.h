@@ -35,7 +35,7 @@ unchecked_uninit_copy(InputIter first, InputIter last, ForwardIter result, std::
         }
     }catch (...){
         for(; result != cur; --cur)
-            dhsstl::destory(&*cur);
+            dhsstl::destroy(&*cur);
     }
     return cur;
 }
@@ -69,7 +69,7 @@ unchecked_uninit_copy_n(InputIter first, Size n, ForwardIter result, std::false_
         }
     }catch (...){
         for(; result != cur; --cur){
-            dhsstl::destory(&*cur);
+            dhsstl::destroy(&*cur);
         }
     }
     return cur;
@@ -103,7 +103,7 @@ unchecked_uninit_fill(ForwardIter first, ForwardIter last, const T& value, std::
         }
     }catch(...){
         for(; first != cur; ++first){
-            dhsstl::destory(&*first);
+            dhsstl::destroy(&*first);
         }
     }
 }
@@ -137,7 +137,7 @@ unchecked_uninit_fill_n(ForwardIter first, Size n, const T& value, std::false_ty
         }
     } catch(...){
         for(; first != cur; ++first){
-            dhsstl::destory(&*first);
+            dhsstl::destroy(&*first);
         }
     }
     return cur;
@@ -171,7 +171,7 @@ unchecked_uninit_move(InputIter first, InputIter last, ForwardIter result, std::
             dhsstl::construct(&*cur, dhsstl::move(*first));
         }
     }catch(...){
-        dhsstl::destory(result, cur);
+        dhsstl::destroy(result, cur);
     }
     // 这里不用throw吗
     return cur;
@@ -206,7 +206,7 @@ unchecked_uninit_move_n(InputIter first, Size n, ForwardIter result, std::false_
         }
     }catch(...){
         for(; result != cur; ++result){
-            dhsstl::destory(&*result);
+            dhsstl::destroy(&*result);
         }
         throw;
     }

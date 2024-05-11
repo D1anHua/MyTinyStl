@@ -56,19 +56,19 @@ template <class ForwardIter>
 void destroy_cat(ForwardIter first, ForwardIter last, std::false_type)
 {
     for(; first != last; ++first)
-        destory(&*first);
+        destroy(&*first);
 }
 
 template <class Ty>
-void destory(Ty* pointer)
+void destroy(Ty* pointer)
 {
     destroy_one(pointer, std::is_trivially_destructible<Ty>{});
 }
 
 template <class ForwardIter>
-void destory(ForwardIter first, ForwardIter last)
+void destroy(ForwardIter first, ForwardIter last)
 {
-    destory_cat(first, last, std::is_trivially_destructible<typename std::iterator_traits<ForwardIter>::value_type>{});
+    destroy_cat(first, last, std::is_trivially_destructible<typename std::iterator_traits<ForwardIter>::value_type>{});
 }
 
 }// namespace dhsstl

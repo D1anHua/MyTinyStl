@@ -50,7 +50,7 @@ struct _Rb_tree_value_traits_imp<T, true>
 {
     // remove_cv:remove const-volatile
     typedef typename std::remove_cv<typename T::first_type>::type   key_type;
-    typedef typename T::seconde_type                                mapped_type;
+    typedef typename T::second_type                                 mapped_type;
     typedef T                                                       value_type;
 
     template <typename Ty>
@@ -81,7 +81,7 @@ struct _Rb_tree_value_traits
     }
 
     template <typename Ty>
-    static const value_type& get_key(const Ty& value){
+    static const value_type& get_value(const Ty& value){
         return value_traits_type::get_value(value);
     }
 };
@@ -225,7 +225,7 @@ struct _Rb_tree_base_iterator : public dhsstl::iterator<dhsstl::bidirectional_it
 };
 
 template <typename T>
-struct _Rb_tree_iterator : public _Rb_tree_base_iterator{
+struct _Rb_tree_iterator : public _Rb_tree_base_iterator<T>{
     typedef T                   value_type;
     typedef T*                  pointer; 
     typedef T&                  reference;
@@ -236,7 +236,7 @@ struct _Rb_tree_iterator : public _Rb_tree_base_iterator{
     typedef _Rb_tree_node_base::base_ptr    base_ptr;
     typedef _Rb_tree_node<T>*               node_ptr;
 
-    using _Rb_tree_base_iterator::node;
+    using _Rb_tree_base_iterator<T>::node;
 
     _Rb_tree_iterator() {}
     _Rb_tree_iterator(base_ptr x) { node = x; }
@@ -271,7 +271,7 @@ struct _Rb_tree_iterator : public _Rb_tree_base_iterator{
 };
 
 template<typename T>
-struct _Rb_tree_const_iterator : public _Rb_tree_base_iterator{
+struct _Rb_tree_const_iterator : public _Rb_tree_base_iterator<T>{
     typedef T                               value_type;
     typedef const T*                        pointer;
     typedef const T&                        reference;
@@ -282,7 +282,7 @@ struct _Rb_tree_const_iterator : public _Rb_tree_base_iterator{
     typedef _Rb_tree_node_base::base_ptr    base_ptr;
     typedef _Rb_tree_node<T>*               node_ptr;
 
-    using _Rb_tree_base_iterator::node;
+    using _Rb_tree_base_iterator<T>::node;
 
     // 构造函数
     _Rb_tree_const_iterator() {}
@@ -327,7 +327,7 @@ struct _Rb_tree_const_iterator : public _Rb_tree_base_iterator{
  * @param node 需要判断的节点
 */
 template <typename BasePtr>
-BasePtr _rb_tree_is_lchild(BasePtr node) noexcept{
+bool _rb_tree_is_lchild(BasePtr node) noexcept{
     return node == node->parent->left;
 }
 
@@ -354,7 +354,7 @@ void _rb_tree_set_black(BasePtr& node) noexcept{
  * @param node 需要设置的节点
 */
 template <typename BasePtr>
-BasePtr _rb_tree_set_red(BasePtr& node) noexcept{
+void _rb_tree_set_red(BasePtr& node) noexcept{
     node->color = _Rb_tree_red;
 }
 
@@ -426,7 +426,7 @@ void _rb_tree_rotate_left(BasePtr x, BasePtr& root) noexcept{
  *| ---------------------------------------- |
 */
 template <typename BasePtr>
-void _Rb_tree_rotate_right(BasePtr x, BasePtr& root) noexcept{
+void _rb_tree_rotate_right(BasePtr x, BasePtr& root) noexcept{
     auto y = x -> left;
     x -> left = y -> right;
     if(y -> right)
@@ -590,7 +590,7 @@ BasePtr _rb_tree_erase_rebalance(BasePtr z, BasePtr& root, BasePtr& leftmost, Ba
     // case 4 : 兄弟节点为黑色, 右子节点为红色, 令兄弟节点为父节点的颜色, 父节点为黑色, 兄弟节点的右子节点
     //          为黑色, 以父节点为支点左(右)旋, 树的性质调整完成, 算法结束
 
-    if(!_Rb_tree_red(y)){
+    if(!_rb_tree_is_red(y)){
         // x 为 黑色时, 调整, 否则直接将 x 变为黑色即可
         while(x != root && (x == nullptr || !_rb_tree_is_red(x))){
             if(x == xp->left){
@@ -616,7 +616,7 @@ BasePtr _rb_tree_erase_rebalance(BasePtr z, BasePtr& root, BasePtr& leftmost, Ba
                         if(brother->left != nullptr)
                             _rb_tree_set_black(brother->left);
                         _rb_tree_set_red(brother);
-                        _Rb_tree_rotate_right(brother, root);
+                        _rb_tree_rotate_right(brother, root);
                         brother = xp->right;
                     }
                     // 转为 case 4
@@ -634,7 +634,7 @@ BasePtr _rb_tree_erase_rebalance(BasePtr z, BasePtr& root, BasePtr& leftmost, Ba
                     // case 1
                     _rb_tree_set_black(brother);
                     _rb_tree_set_red(xp);
-                    _Rb_tree_rotate_right(xp, root);
+                    _rb_tree_rotate_right(xp, root);
                     brother = xp -> left;
                 }
                 if((brother->left == nullptr || !_rb_tree_is_red(brother->left))&&
@@ -900,7 +900,7 @@ private:
     template <typename ...Args>
     node_ptr create_node(Args&& ...args);
     node_ptr clone_node(base_ptr x);
-    void     destory_node(node_ptr p);
+    void     destroy_node(node_ptr p);
 
     // init / reset
     void     rb_tree_init();
@@ -1004,7 +1004,7 @@ rb_tree<T, Compare>::
 emplace_multi(Args&& ...args){
     THROW_LENGTH_ERROR_IF(node_count_ > max_size() - 1, "rb_tree<T, Comp>'s size too big");
     node_ptr np = create_node(dhsstl::forward<Args>(args)...);
-    auto res = get_insert_multi_pos(value_traits::get_key(np->value));
+    auto res = get_insert_multi_pos(value_traits::get_key(np->value_field));
     return insert_node_at(res.first, np, res.second);
 }
 
@@ -1018,12 +1018,12 @@ rb_tree<T, Compare>::
 emplace_unique(Args&& ...args){
     THROW_LENGTH_ERROR_IF(node_count_ > max_size() - 1, "rb_tree<T, Comp>'s size too big");
     node_ptr np = create_node(dhsstl::forward<Args>(args)...);
-    auto res = get_insert_unique_pos(value_traits::get_key(np->value));
+    auto res = get_insert_unique_pos(value_traits::get_key(np->value_field));
     if(res.second){
         // 插入成功
         return dhsstl::make_pair(insert_node_at(res.first.first, np, res.first.second), true);
     }
-    destory_node(np);
+    destroy_node(np);
     return dhsstl::make_pair(iterator(res.first.first), false);
 }
 
@@ -1040,14 +1040,14 @@ emplace_multi_use_hint(iterator hint, Args&& ...args){
     if(node_count_ == 0){
         return insert_node_at(header_, np, true);
     }
-    key_type key = value_traits::get_key(np->value);
+    key_type key = value_traits::get_key(np->value_field);
     if(hint == begin()){
         // 位于 begin 处
         if(key_comp_(key, value_traits::get_key(*hint))){
             return insert_node_at(hint.node, np, true);
         }else{
             auto pos = get_insert_multi_pos(key);
-            return insert_node_at(hint.node, np, true);
+            return insert_node_at(pos.first, np, pos.second);
         }
     }else if(hint == end()){
         // 位于 end 处
@@ -1074,7 +1074,7 @@ emplace_unique_use_hint(iterator hint, Args&& ...args){
     if(node_count_ == 0){
         return insert_node_at(header_, np, true);
     }
-    key_type key = value_traits::get_key(np->value);
+    key_type key = value_traits::get_key(np->value_field);
     if(hint == begin()){
         // 位于begin()处
         if(key_comp_(key, value_traits::get_key(*hint))){
@@ -1082,7 +1082,7 @@ emplace_unique_use_hint(iterator hint, Args&& ...args){
         }else{
             auto pos = get_insert_unique_pos(key);
             if(!pos.second){
-                destory_node(np);
+                destroy_node(np);
                 return pos.first.first;
             }
             return insert_node_at(pos.first.first, np, pos.first.second);
@@ -1094,7 +1094,7 @@ emplace_unique_use_hint(iterator hint, Args&& ...args){
         }else{
             auto pos = get_insert_unique_pos(key);
             if(!pos.second){
-                destory_node(np);
+                destroy_node(np);
                 return pos.first.first;
             }
             return insert_node_at(pos.first.first, np, pos.first.second);
@@ -1145,7 +1145,7 @@ erase(iterator hint){
     ++next;
 
     _rb_tree_erase_rebalance(hint.node, root(), leftmost(), rightmost());
-    destory_node(node);
+    destroy_node(node);
     --node_count_;
     return next;
 }
@@ -1358,7 +1358,7 @@ rb_tree<T, Compare>::
 create_node(Args&& ...args){
     auto tmp = node_allocator::allocate(1);
     try{
-        data_allocator::constrcut(dhsstl::address_of(tmp->value), dhsstl::forward<Args>(args)...);
+        data_allocator::construct(dhsstl::address_of(tmp->value_field), dhsstl::forward<Args>(args)...);
         tmp->left = nullptr;
         tmp->right = nullptr;
         tmp->parent = nullptr;
@@ -1388,8 +1388,8 @@ clone_node(base_ptr x){
 */
 template <typename T, typename Compare>
 void rb_tree<T, Compare>::
-destory_node(node_ptr p){
-    data_allocator::destory(&p->value_field);
+destroy_node(node_ptr p){
+    data_allocator::destroy(&p->value_field);
     node_allocator::deallocate(p);
 }
 
@@ -1446,7 +1446,7 @@ rb_tree<T, Compare>::get_insert_unique_pos(const key_type& key){
     }
     iterator j = iterator(y);   // 此时 y 为插入点的父节点
     if(add_to_left){
-        if(y == header_ || j = begin()){
+        if(y == header_ || j == begin()){
             // 如果树为空树或者插入点在最左节点处, 肯定可以插入新的节点
             return dhsstl::make_pair(dhsstl::make_pair(y, true), true);
         }else{
@@ -1576,7 +1576,7 @@ insert_unique_use_hint(iterator hint, key_type key, node_ptr node){
     }
     auto pos = get_insert_unique_pos(key);
     if(!pos.second){
-        destory_node(node);
+        destroy_node(node);
         return pos.first.first;
     }
     return insert_node_at(pos.first.first, node, pos.first.second);
@@ -1623,7 +1623,7 @@ erase_since(base_ptr x){
     while(x != nullptr){
         erase_since(x->right);
         auto y = x->left;
-        destory_node(static_cast<node_ptr>(x));
+        destroy_node(static_cast<node_ptr>(x));
         x = y;
     }
 }

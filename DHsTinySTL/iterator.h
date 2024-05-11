@@ -66,6 +66,11 @@ namespace dhsstl
 struct input_iterator_tag {};
 struct output_iterator_tag {};
 struct forward_iterator_tag : public input_iterator_tag {};
+/**
+ * @brief 双向迭代器
+ * @note 双向迭代器支持的操作: 前进(++)、后退(--)、==、 !=
+ * 特别注意的是, 没有比较大小操作
+ */
 struct bidirectional_iterator_tag : public forward_iterator_tag {};
 struct random_access_iterator_tag : public bidirectional_iterator_tag {};
 
@@ -121,7 +126,7 @@ struct iterator_traits_impl {};
 template <typename Iterator>
 struct iterator_traits_impl<Iterator, true>
 {
-    typedef typename Iterator::iterator_category itrerator_category;
+    typedef typename Iterator::iterator_category iterator_category;
     typedef typename Iterator::value_type        value_type;
     typedef typename Iterator::pointer           pointer;
     typedef typename Iterator::reference         reference;
@@ -179,7 +184,7 @@ struct iterator_traits<const T*>
 template <typename T, typename U, bool = has_iterator_cat<iterator_traits<T>>::value>
 struct has_iterator_cat_of
     : public m_bool_constant<std::is_convertible<
-    typename iterator_traits<T>::iterator_categoery, U>::value>
+    typename iterator_traits<T>::iterator_category, U>::value>
 {
 };
 
@@ -220,7 +225,7 @@ iterator_category(const Iterator&){
 // 这个函数而可以很方便的决定某个迭代器的 difference_type
 template <typename Iterator>
 inline typename iterator_traits<Iterator>::difference_type*
-distance_type(const Iterator*){
+distance_type(const Iterator&){
     return static_cast<typename iterator_traits<Iterator>::difference_type*>(0);
 }
 
@@ -254,7 +259,7 @@ __distance(RandomAccessIterator first, RandomAccessIterator last, random_access_
 template <typename InputIterator>
 inline typename iterator_traits<InputIterator>::difference_type
 distance(InputIterator first, InputIterator last){
-    return __distance(first, last, iterator_traits<InputIterator>::category(first));
+    return __distance(first, last, iterator_category(first));
 }
 
 // 以下是整组 advance 函数
@@ -267,9 +272,9 @@ inline void __advance(InputIterator& i, Distance n, input_iterator_tag){
 template <typename BidirectionalIterator, typename Distance>
 inline void __advance(BidirectionalIterator& i, Distance n, bidirectional_iterator_tag){
     if(n >= 0)
-        while (n--) i++;
+        while (n--) ++i;
     else
-        while (n++) i--;
+        while (n++) --i;
 }
 
 template <typename RandomAccessIterator, typename Distance>
@@ -279,7 +284,7 @@ inline void __advance(RandomAccessIterator& i, Distance n, random_access_iterato
 
 template <typename InputIterator, typename Distance>
 inline void advance(InputIterator& i, Distance n){
-    __advance(i, n, iterator_traits<InputIterator>::category(i));
+    __advance(i, n, iterator_category(i));
 }
 
 // --------------------------------------------------------------------
@@ -312,7 +317,7 @@ public:
     // 取出相应的正向迭代器
     // 在成员函数后面 + const 代表 该成员函数不能修改this指针. 也就是它不能修改成员变量
     iterator_type base() const{
-        return this->current;
+        return current;
     }
 
     // 重载操作符
@@ -344,7 +349,7 @@ public:
     }
     self operator--(int){
         self tmp = *this;
-        --current;
+        ++current;
         return tmp;
     }
 

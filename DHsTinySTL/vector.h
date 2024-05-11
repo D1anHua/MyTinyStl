@@ -17,10 +17,13 @@
 //      * insert
 
 #include <initializer_list>
+
 #include "iterator.h"
 #include "memory.h"
 #include "util.h"
 #include "exceptdef.h"
+#include "algo.h"
+#include "algobase.h"
 
 namespace dhsstl{
 
@@ -75,7 +78,7 @@ public:
         fill_init(n, value_type());
     }
 
-    vector(size_type n, value_type& value){
+    vector(size_type n, const value_type& value){
         fill_init(n, value);
     }
 
@@ -94,20 +97,23 @@ public:
     vector(vector&& rhs) noexcept
         : begin_(rhs.begin_),
         end_(rhs.end_),
-        cap_(rhs.cap_){
+        cap_(rhs.cap_)
+    {
         rhs.begin_ = nullptr;
         rhs.end_ = nullptr;
         rhs.cap_ = nullptr;
     }
 
-    vector(std::initializer_list<value_type> ilist){
+    vector(std::initializer_list<value_type> ilist)
+    {
         range_init(ilist.begin(), ilist.end());
     }
 
     vector& operator=(const vector& rhs);
     vector& operator=(vector&& rhs) noexcept;
 
-    vector& operator=(std::initializer_list<value_type> ilist){
+    vector& operator=(std::initializer_list<value_type> ilist)
+    {
         vector tmp(ilist.begin(), ilist.end());
         swap(tmp);
         return *this;
@@ -128,7 +134,7 @@ public:
     iterator                end()           noexcept{
         return end_;
     }
-    const iterator          end()     const noexcept{
+    const_iterator          end()     const noexcept{
         return end_;
     }
 
@@ -179,7 +185,7 @@ public:
         DHSSTL_DEBUG(n < size());
         return *(begin_ + n);
     }
-    const reference         operator[](size_type n) const{
+    const_reference         operator[](size_type n) const{
         DHSSTL_DEBUG(n < size());
         return *(begin_ + n);
     }
@@ -224,7 +230,7 @@ public:
     >::type = 0>
     void assign(Iter first, Iter last){
         DHSSTL_DEBUG(!(last < first));
-        copy_assign(first, last, iterator_category(this));
+        copy_assign(first, last, iterator_category(first));
     }
 
     void assign(std::initializer_list<value_type> il){
@@ -265,7 +271,7 @@ public:
 
     // erase / clear
     iterator erase(const_iterator pos);
-    iterator erase(const_iterator frist, const_iterator last);
+    iterator erase(const_iterator first, const_iterator last);
     void     clear(){ erase(begin(), end()); }
 
     // resieze / reverse
@@ -329,7 +335,7 @@ vector<T>& vector<T>::operator=(const vector& rhs){
             swap(tmp);
         }else if(size() >= len){
             auto i = dhsstl::copy(rhs.begin(), rhs.end(), begin());
-            data_allocator::destory(i, end_);
+            data_allocator::destroy(i, end_);
             end_ = begin_ + len;
         }else{
             dhsstl::copy(rhs.begin(), rhs.begin() + size(), begin_);
@@ -343,7 +349,7 @@ vector<T>& vector<T>::operator=(const vector& rhs){
 // 移动赋值操作符
 template <typename T>
 vector<T>& vector<T>::operator=(vector&& rhs) noexcept{
-    destory_and_recover(begin_, end_, cap_ - begin_);
+    destory_and_recorver(begin_, end_, cap_ - begin_);
     begin_ = rhs.begin_;
     end_ = rhs.end_;
     cap_ =rhs.cap_;
@@ -357,7 +363,7 @@ vector<T>& vector<T>::operator=(vector&& rhs) noexcept{
 template<typename T>
 void vector<T>::reserve(size_type n){
     if(capacity() < n){
-        THROW_OUT_OF_RANGE_IF(n > max_size(),
+        THROW_LENGTH_ERROR_IF(n > max_size(),
             "n can not larger than max_size() in vector<T>::reserve(n)" 
         );
         const auto old_size = size();
@@ -432,7 +438,7 @@ void vector<T>::push_back(const value_type& value){
 template<typename T>
 void vector<T>::pop_back(){
     DHSSTL_DEBUG(!empty());
-    data_allocator::destory(end_ - 1);
+    data_allocator::destroy(end_ - 1);
     --end_;
 }
 
@@ -467,7 +473,7 @@ vector<T>::erase(const_iterator pos){
     DHSSTL_DEBUG(pos >= begin() && pos <= end());
     iterator xpos = begin_ + (pos - begin());
     dhsstl::move(xpos + 1, end_, xpos);
-    data_allocator::destory(end_ - 1);
+    data_allocator::destroy(end_ - 1);
     --end_;
     return xpos;
 }
@@ -479,8 +485,8 @@ vector<T>::erase(const_iterator first, const_iterator last){
     DHSSTL_DEBUG(first >= begin() && last <= end() && !(last < first));
     const auto n = first - begin();
     iterator r = begin_ + (first - begin());
-    data_allocator::destory(dhsstl::move(r + (last - first), end_, r), end_);
-    end_ = end_ + (last - first);
+    data_allocator::destroy(dhsstl::move(r + (last - first), end_, r), end_);
+    end_ = end_ - (last - first);
     return begin_ + n;
 }
 
@@ -511,7 +517,7 @@ template <typename T>
 void vector<T>::try_init() noexcept{
     try
     {
-        begin_ = data_allocator::allocator(16);
+        begin_ = data_allocator::allocate(16);
         end_ = begin_;
         cap_ = begin_ + 16;
     }
@@ -528,7 +534,7 @@ template <typename T>
 void vector<T>::init_space(size_type size, size_type cap){
     try
     {
-        begin_ = data_allocator::allocator(cap);
+        begin_ = data_allocator::allocate(cap);
         end_ = begin_ + size;
         cap_ = begin_ + cap;
     }
@@ -546,7 +552,7 @@ template <typename T>
 void vector<T>::fill_init(size_type n, const value_type& value){
     const size_type init_size = dhsstl::max(static_cast<size_type>(16), n);
     init_space(n, init_size);
-    dhsstl::uninitialized_copy(begin_, n, value);
+    dhsstl::uninitialized_fill_n(begin_, n, value);
 }
 
 // range_init 函数
@@ -627,7 +633,7 @@ void vector<T>::copy_assign(FIter first, FIter last, forward_iterator_tag){
         swap(tmp);
     }else if(size() >= len){
         auto new_end = dhsstl::copy(first, last, begin_);
-        data_allocator::destory(new_end, end_);
+        data_allocator::destroy(new_end, end_);
         end_ = new_end;
     }else{
         auto mid = first;
@@ -731,7 +737,7 @@ copy_insert(iterator pos, IIter first, IIter last){
             dhsstl::uninitialized_copy(first, last, pos);
         }else{
             auto mid = first;
-            dhsstl::address_of(mid, after_elems);
+            dhsstl::advance(mid, after_elems);
             end_ = dhsstl::uninitialized_copy(mid, last, end_);
             end_ = dhsstl::uninitialized_move(pos, old_end, end_);
             dhsstl::uninitialized_copy(first, mid, pos);

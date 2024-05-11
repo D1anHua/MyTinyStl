@@ -67,13 +67,13 @@ struct list_node_base
 
     list_node_base() = default;
 
-    inline node_ptr as_node(){ return static_cast<node_ptr>(self()); }
+    node_ptr as_node(){ return static_cast<node_ptr>(self()); }
 
-    inline void unlink(){ prev = next = self(); }
+    void unlink(){ prev = next = self(); }
 
     // 这句话的作用是啥
     // 我觉得只是封装一下这句话
-    inline base_ptr self(){ return static_cast<base_ptr>(&*this); }
+    base_ptr self(){ return static_cast<base_ptr>(&*this); }
 };
 
 template <typename T>
@@ -85,9 +85,9 @@ struct list_node : public list_node_base<T>{
     list_node() = default;
     list_node(const T& v): value(v){}
 
-    inline base_ptr as_base(){ return static_cast<base_ptr>(&*this); }
+    base_ptr as_base(){ return static_cast<base_ptr>(&*this); }
 
-    inline self(){ return static_cast<node_ptr>(&*this); }
+    node_ptr self(){ return static_cast<node_ptr>(&*this); }
 };
 
 // List 的迭代器设计
@@ -254,7 +254,7 @@ public:
 
     // 复制
     list& operator=(const list& rhs){
-        if(this != rhs){
+        if(this != &rhs){
             assign(rhs.begin(), rhs.end());
         }
         return *this;
@@ -460,7 +460,7 @@ public:
         DHSSTL_DEBUG(!empty());
         auto n = node_->next;
         unlink_nodes(n, n);
-        destory_node(n->as_node());
+        destroy_node(n->as_node());
         --size_;
     }
 
@@ -468,7 +468,7 @@ public:
         DHSSTL_DEBUG(!empty());
         auto n = node_->prev;
         unlink_nodes(n, n);
-        destory_node(n->as_node());
+        destroy_node(n->as_node());
         --size_;
     }
 
@@ -519,10 +519,10 @@ public:
 private:
     // helper functions
 
-    // create / destory node
+    // create / destroy node
     template<typename ...Args>
     node_ptr create_node(Args&& ...args);
-    void     destory_node(node_ptr p);
+    void     destroy_node(node_ptr p);
 
     // initialize
     void    fill_init(size_type n, const value_type& value);
@@ -563,7 +563,7 @@ list<T>::erase(const_iterator pos){
     auto n = pos.node_;
     auto next = n->next;
     unlink_nodes(n, n);
-    destory_node(n->as_node());
+    destroy_node(n->as_node());
     --size_;
     return iterator(next);
 }
@@ -577,7 +577,7 @@ list<T>::erase(const_iterator first, const_iterator last){
         while(first != last){
             auto cur = first.node_;
             ++first;
-            destory_node(cur->as_node());
+            destroy_node(cur->as_node());
             --size_;
         }
     }
@@ -591,7 +591,7 @@ void list<T>::clear(){
         auto cur = node_->next;
         // 因为删除了 cur, 所以这里首先记录一下 cur->next;
         for(base_ptr next = cur->next; cur != node_; cur = next, next = cur->next){
-            destory_node(cur->as_node());
+            destroy_node(cur->as_node());
         }
         node_->unlink();
         size_ = 0;
@@ -705,7 +705,7 @@ template <typename T>
 template <typename Compare>
 void list<T>::merge(list &x, Compare comp){
     if(this != &x){
-        THROW_LENGTH_ERROR_IF(size > max_size() - x.size_, "list<T>'s size too big");
+        THROW_LENGTH_ERROR_IF(size_ > max_size() - x.size_, "list<T>'s size too big");
 
         auto f1 = begin();
         auto l1 = end();
@@ -732,7 +732,7 @@ void list<T>::merge(list &x, Compare comp){
         // 剩余部分
         if(f2 != l2){
             auto f = f2.node_;
-            auto l = ls.node_->prev;
+            auto l = l2.node_->prev;
             x.unlink_nodes(f, l);
             link_nodes(l1.node_, f, l);
         }
@@ -780,8 +780,8 @@ list<T>::create_node(Args&& ...args){
 
 // 销毁节点
 template <typename T>
-void list<T>::destory_node(node_ptr p){
-    data_allocator::destory(dhsstl::address_of(p->value));
+void list<T>::destroy_node(node_ptr p){
+    data_allocator::destroy(dhsstl::address_of(p->value));
     node_allocator::deallocate(p);
 }
 
@@ -794,7 +794,7 @@ void list<T>::fill_init(size_type n, const value_type& value){
     try{
         for(; n > 0; --n){
             auto node = create_node(value);
-            link_nodes_at_back(node_->as_base(), node_->as_base());
+            link_nodes_at_back(node->as_base(), node->as_base());
         }
     }catch(...){
         clear();
@@ -816,7 +816,7 @@ void list<T>::copy_init(Iter first, Iter last){
     {
         for(; n > 0; --n, ++first){
             auto node = create_node(*first);
-            link_nodes_at_back(node->as_base(), node_->as_base());
+            link_nodes_at_back(node->as_base(), node->as_base());
         }
     }
     catch(...)
@@ -897,7 +897,7 @@ template <typename Iter>
 void list<T>::copy_assign(Iter f2, Iter l2){
     auto f1 = begin();
     auto l1 = end();
-    for(; f1 != l1 && f2 != ls; ++f1, ++f2){
+    for(; f1 != l1 && f2 != l2; ++f1, ++f2){
         *f1 = *f2;
     }
     if(f2 == l2){
@@ -914,7 +914,7 @@ list<T>::fill_insert(const_iterator pos, size_type n, const value_type& value){
     iterator r(pos.node_);    
     if(n != 0){
         const auto add_size = n;
-        auto node = create_node(vlaue);
+        auto node = create_node(value);
         node->prev = nullptr;
         r = iterator(node);
         iterator end = r;
@@ -931,7 +931,7 @@ list<T>::fill_insert(const_iterator pos, size_type n, const value_type& value){
             auto enode = end.node_;
             while(true){
                 auto prev = enode->prev;
-                destory_node(enode->as_node());
+                destroy_node(enode->as_node());
                 if(prev == nullptr)
                     break;
                 enode = prev;
@@ -967,13 +967,13 @@ list<T>::copy_insert(const_iterator pos, size_type n, Iter first){
             while (true)
             {
                 auto prev = enode->prev;
-                destory_node(enode->as_node());
+                destroy_node(enode->as_node());
                 if(prev == nullptr)  break;
                 enode = prev;
             }
             throw; 
         }
-        link_nodes(pos->node_, r.node_, end.node_);
+        link_nodes(pos.node_, r.node_, end.node_);
     }
     return r;
 }
@@ -988,12 +988,12 @@ list<T>::list_sort(iterator f1, iterator l2, size_type n, Compared comp){
     
     if(n == 2){
         if(comp(*--l2, *f1)){
-            auto ln == l2.node_;
+            auto ln = l2.node_;
             unlink_nodes(ln, ln);
             link_nodes(f1.node_, ln, ln);
             return l2;
         }
-        return l1;
+        return f1;
     }
 
     auto n2 = n / 2;    
