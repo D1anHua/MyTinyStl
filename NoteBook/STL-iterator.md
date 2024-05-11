@@ -1,13 +1,3 @@
----
-title: STL-Type-traits & Iterator
-tags: tinySTL
-categories:
-  - C++
-  - STL
-date: 2023-09-13 21:07:18
----
-
-
 ### 0. 写在前面
 迭代器模式:
 设计模式一书中对`iterator`模式的定义:

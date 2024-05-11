@@ -1,13 +1,3 @@
----
-title: STL--Allocator & Construct
-tags: tinySTL
-categories:
-  - C++
-  - STL
-date: 2023-09-20 11:30:49
----
-
-
 #### 0. 序
 
 接下来分析STL的空间配置器(Allocator).
